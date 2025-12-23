@@ -134,7 +134,7 @@ function Rayleigh_Damping!(atmo_data::Atmo_Data, grid_p_half::Array{Float64,3}, 
 end 
 
 !#######################################################################
-
+"""Use linear response function (LRF) calc. from column rrtm"""
 function Radiative_Forcing!(
     atmo_data::Atmo_Data, Δt::Int64, grid_p_full::Array{Float64,3}, 
     grid_t::Array{Float64,3}, grid_qv::Array{Float64,3}, 

@@ -88,9 +88,6 @@ function Spectral_Spherical_Mesh(num_fourier::Int64, num_spherical::Int64, nθ::
     end 
     θe[nθ+1] =  0.5*pi
     
-    write("HS42_λe.dat", join(λe, "\n"))
-    write("HS42_θe.dat", join(θe, "\n"))
-    
     qwg = zeros(Float64, num_fourier + 1, num_spherical + 1, nθ)
     for i = 1:nθ
         qwg[:,:,i] .=  qnm[:,:,i] * wts[i]

@@ -17,12 +17,10 @@ mutable struct Output_Manager
     θc::Array{Float64, 1}
     σc::Array{Float64, 1}
 
-    n_daily_mean::Array{Float64, 1}
-    
     op_data::Dict{String,Array}
 
     is1st_update::Bool
-    final_keys::Vector{String}
+    final_keys::Vector{String} # required vars for warmstart file
 end
 
 function Output_Manager(
@@ -47,7 +45,6 @@ function Output_Manager(
     σc = (bk[2:nd+1] + bk[1:nd])/2.0
   
     n_day = Int64((end_time - start_time)/ (day_to_sec/4) )
-    n_daily_mean = zeros(Float64, n_day)
 
     grid_geopots_xyzt = zeros(Float64, nλ, nθ, 1, n_day)
     num_fourier, nθ, nd = 42, 64, 20
@@ -112,7 +109,7 @@ function Output_Manager(
     return Output_Manager(
         nλ, nθ, nd, n_day,
         day_to_sec, start_time, end_time, current_time, spinup_day, 
-        λc, θc, σc, n_daily_mean,
+        λc, θc, σc,
         op_data, is1st_update,
         final_keys
     )
@@ -127,7 +124,6 @@ function Update_Output!(
     _op_man.current_time = current_time
     day_to_sec, start_time, n_day = _op_man.day_to_sec, _op_man.start_time, _op_man.n_day
 
-    n_daily_mean = _op_man.n_daily_mean    
     i_day = Int(div(current_time - start_time - 1, day_to_sec/4) + 1)
 
     if (i_day > n_day)
@@ -208,7 +204,7 @@ function Update_Output!(
     _op_man.op_data["grid_z_full_xyzt"][:,:,:,i_day]  .= dyn_data.grid_z_full[:,:,:]
     _op_man.op_data["grid_w_full_xyzt"][:,:,:,i_day]  .= dyn_data.grid_w_full[:,:,:]
 
-    # key generation for first update
+    # HS forcing var keys generate during first update
     if _op_man.is1st_update
         for k in keys(dyn_data.grid_δt_HS)
             _op_man.op_data[k] = zeros(Float64, _op_man.nλ, _op_man.nθ, _op_man.nd, n_day)    
@@ -220,7 +216,6 @@ function Update_Output!(
         _op_man.op_data[k][:,:,:,i_day] .= dyn_data.grid_δt_HS[k][:,:,:]
     end
 
-    n_daily_mean[i_day] += 1
 end
 
 function Finalize_Output!(

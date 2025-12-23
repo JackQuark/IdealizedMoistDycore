@@ -15,12 +15,11 @@ include("atmos_spectral/Gauss_And_Legendre.jl")
 include("atmos_spectral/Spectral_Spherical_Mesh.jl")
 include("atmos_spectral/Vert_Coordinate.jl")
 include("atmos_spectral/Press_And_Geopot.jl")
+include("atmos_spectral/Time_Integrator.jl")
+include("atmos_spectral/Semi_Implicit.jl") 
 
 # shared
-include("shared/Time_Integrator.jl")
 include("shared/Output_Manager.jl")
-
-include("atmos_spectral/Semi_Implicit.jl") # 
 
 # Params
 include("atmos_param/HS_Forcing.jl")
