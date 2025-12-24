@@ -12,38 +12,39 @@ mutable struct Dyn_Data
     num_spe_tracters::Int64
     
     #########################################################
-    # specral vor 
+    # n: next, c: current, p: previous
+    # spectral vor 
     spe_vor_n::Array{ComplexF64,3}
     spe_vor_c::Array{ComplexF64,3}
     spe_vor_p::Array{ComplexF64,3}
 
-    # specral div
+    # spectral div
     spe_div_n::Array{ComplexF64,3}
     spe_div_c::Array{ComplexF64,3}
     spe_div_p::Array{ComplexF64,3}
 
-    # specral height or surface pressure
+    # spectral height or surface pressure
     spe_lnps_n::Array{ComplexF64,3}
     spe_lnps_c::Array{ComplexF64,3}
     spe_lnps_p::Array{ComplexF64,3}
 
-    # specral temperature
+    # spectral temperature
     spe_t_n::Array{ComplexF64,3}
     spe_t_c::Array{ComplexF64,3}
     spe_t_p::Array{ComplexF64,3}
 
-    # specral tracer
+    # spectral tracer
     spe_tracers_n::Array{ComplexF64,3}
     spe_tracers_c::Array{ComplexF64,3}
     spe_tracers_p::Array{ComplexF64,3}
 
     ##########################################################################
-    # grid w-e velocity
+    # grid zonal velocity
     grid_u_n::Array{Float64,3}
     grid_u_c::Array{Float64,3}
     grid_u_p::Array{Float64,3}
 
-    # grid n-s velocity
+    # grid meridional velocity
     grid_v_n::Array{Float64,3}
     grid_v_c::Array{Float64,3}
     grid_v_p::Array{Float64,3}
@@ -58,19 +59,17 @@ mutable struct Dyn_Data
     grid_t_c::Array{Float64,3}
     grid_t_p::Array{Float64,3}
 
-
     # grid tracer
     grid_tracers_n::Array{Float64,3}
     grid_tracers_c::Array{Float64,3}
     grid_tracers_p::Array{Float64,3}
     
     grid_tracers_diff::Array{Float64,3}
-    
-    ### By CJY3
     grid_tracers_full::Array{Float64,3}
 
     ############################################################
     # Memory contrainer for temporal variables
+    # δ: time tendency
 
     # vor
     spe_δvor::Array{ComplexF64,3}
@@ -84,18 +83,18 @@ mutable struct Dyn_Data
     grid_δdiv::Array{Float64,3}
     
 
-    # w-e velocity tendency
+    # zonal velocity tendency
     spec_δu::Array{ComplexF64,3}
     grid_δu::Array{Float64,3}
     
     
-    # n-s velocity tendency
+    # meridional velocity tendency
     spec_δv::Array{ComplexF64,3}
     grid_δv::Array{Float64,3}
     
 
 
-    # pressure     
+    # pressure
     spe_δlnps::Array{ComplexF64,3}
     grid_lnps::Array{Float64,3}
     grid_δlnps::Array{Float64,3}
@@ -103,8 +102,8 @@ mutable struct Dyn_Data
 
     grid_δps::Array{Float64,3}
 
-    grid_p_full::Array{Float64,3} # pressure at full level
-    grid_p_half::Array{Float64,3} # pressure at half level
+    grid_p_full::Array{Float64,3}   # pressure at full level
+    grid_p_half::Array{Float64,3}   # pressure at half level
     grid_lnp_full::Array{Float64,3} # ln pressure at full level
     grid_lnp_half::Array{Float64,3} # ln pressure at half level
     grid_Δp::Array{Float64,3}       # pressure difference at each level
@@ -113,13 +112,12 @@ mutable struct Dyn_Data
     grid_dλ_ps::Array{Float64,3} 
     grid_dθ_ps::Array{Float64,3}
 
-
     # temperature tendency
     spe_δt::Array{ComplexF64,3}
     grid_δt::Array{Float64,3}
+    
     grid_δt_HS::Dict{String,Array{Float64,3}} # (summer2025)
     
-    ### By CJY2
     spe_δtracers::Array{ComplexF64,3}
     grid_δtracers::Array{Float64,3}
 
@@ -135,7 +133,6 @@ mutable struct Dyn_Data
     spe_energy::Array{ComplexF64,3}
     grid_energy_full::Array{Float64,3}
     
-
     # geopotential 
     grid_geopots::Array{Float64,3} #surface geopotential
     grid_geopot_full::Array{Float64,3}
@@ -178,10 +175,12 @@ end
 
 function Dyn_Data(name::String, num_fourier::Int64, num_spherical::Int64, nλ::Int64, nθ::Int64, nd::Int64, 
                   num_grid_tracters::Int64=1, num_spe_tracters::Int64=1)
-    # specral vor 
+    # n: next, c: current, p: previous
+    # spectral vor 
     spe_vor_n = zeros(ComplexF64, num_fourier+1, num_spherical+1, nd)
     spe_vor_c = zeros(ComplexF64, num_fourier+1, num_spherical+1, nd)
     spe_vor_p = zeros(ComplexF64, num_fourier+1, num_spherical+1, nd)
+    
     
     # spectral div
     spe_div_n = zeros(ComplexF64, num_fourier+1, num_spherical+1, nd)
@@ -205,12 +204,12 @@ function Dyn_Data(name::String, num_fourier::Int64, num_spherical::Int64, nλ::I
     
     #########################################################
 
-    # grid w-e velocity
+    # grid zonal velocity
     grid_u_n = zeros(Float64, nλ,  nθ, nd)
     grid_u_c = zeros(Float64, nλ,  nθ, nd)
     grid_u_p = zeros(Float64, nλ,  nθ, nd)
 
-    # grid n-s velocity
+    # grid meridional velocity
     grid_v_n = zeros(Float64, nλ,  nθ, nd)
     grid_v_c = zeros(Float64, nλ,  nθ, nd)
     grid_v_p = zeros(Float64, nλ,  nθ, nd)
@@ -229,9 +228,9 @@ function Dyn_Data(name::String, num_fourier::Int64, num_spherical::Int64, nλ::I
     grid_tracers_n = zeros(Float64, nλ,  nθ, nd)
     grid_tracers_c = zeros(Float64, nλ,  nθ, nd)
     grid_tracers_p = zeros(Float64, nλ,  nθ, nd)
-    
+
     grid_tracers_diff = zeros(Float64, nλ,  nθ, nd)
-    
+
     ## By CJY3
     grid_tracers_full = zeros(Float64, nλ,  nθ, nd)
     ############################################################
@@ -255,7 +254,8 @@ function Dyn_Data(name::String, num_fourier::Int64, num_spherical::Int64, nλ::I
     # n-s velocity tendency
     spec_δv = zeros(ComplexF64, num_fourier+1, num_spherical+1, nd)
     grid_δv = zeros(Float64, nλ,  nθ, nd)
-
+    
+    
     
     # pressure     
     spe_δlnps = zeros(ComplexF64, num_fourier+1, num_spherical+1, 1)
@@ -335,7 +335,7 @@ function Dyn_Data(name::String, num_fourier::Int64, num_spherical::Int64, nλ::I
     spe_div_n, spe_div_c, spe_div_p, 
     spe_lnps_n, spe_lnps_c, spe_lnps_p,
     spe_t_n, spe_t_c, spe_t_p,
-    spe_tracers_n, spe_tracers_c, spe_tracers_p, 
+    spe_tracers_n, spe_tracers_c, spe_tracers_p,
     ########################################################################
     grid_u_n, grid_u_c, grid_u_p,
     grid_v_n, grid_v_c, grid_v_p,
@@ -361,7 +361,51 @@ function Dyn_Data(name::String, num_fourier::Int64, num_spherical::Int64, nλ::I
     factor1, factor2, factor3, factor4, K_E, convection)
 end
 
+
+
 function Time_Advance!(dyn_data::Dyn_Data)
+    """
+    Performs the temporal cycling of the prognostic state variables to advance the simulation clock.
+    This function shifts the time window of the model state by updating the storage buffers for the
+    Three-Time-Level integration scheme (e.g., Leapfrog).
+
+    The function executes a deep copy operation to transition the physical state:
+    1. The Previous state buffer (ψᵖ at t-Δt) is overwritten by the Current state (ψᶜ at t).
+    2. The Current state buffer (ψᶜ at t) is overwritten by the Next state (ψⁿ at t+Δt).
+
+    This cycling applies to all prognostic variables in both spectral and grid space, including:
+    - Spectral: Vorticity (ζ), Divergence (D), Temperature (T), Log Surface Pressure (ln pₛ).
+    - Grid: Zonal Wind (u), Meridional Wind (v), Surface Pressure (pₛ), Temperature (T).
+    - Tracers: All passive tracers qᵢ in both spectral and grid representations.
+
+    Mechanism
+    ---------
+    ψᵖ ← ψᶜ
+    ψᶜ ← ψⁿ
+
+    After this operation, the `_n` (Next) buffer contains stale data and is ready to be overwritten
+    by the tendency computation for the upcoming time step (t+2Δt).
+
+    Parameters
+    ----------
+    dyn_data (Dyn_Data)
+        The mutable monolithic data structure containing the atmospheric state. The fields suffixed
+        with `_p` and `_c` will be modified in-place.
+
+    Returns
+    -------
+    Nothing
+        The function operates via side effects on the input structure.
+
+    Notes
+    -----
+    This implementation uses broadcast assignment (.=), which triggers a physical memory copy for every
+    element in the state arrays. While robust, this is computationally more expensive than pointer
+    swapping. Ensure that the `_n` variables have been fully updated by the time integration scheme
+    before calling this function.
+    
+    """
+    # n: next, c: current, p: previous
     # update spectral variables
     dyn_data.spe_vor_p .= dyn_data.spe_vor_c
     dyn_data.spe_vor_c .= dyn_data.spe_vor_n
@@ -394,7 +438,6 @@ function Time_Advance!(dyn_data::Dyn_Data)
     dyn_data.grid_t_p .= dyn_data.grid_t_c
     dyn_data.grid_t_c .= dyn_data.grid_t_n
 
-    
     if dyn_data.num_grid_tracters > 0
         dyn_data.grid_tracers_p .= dyn_data.grid_tracers_c
         dyn_data.grid_tracers_c .= dyn_data.grid_tracers_n
