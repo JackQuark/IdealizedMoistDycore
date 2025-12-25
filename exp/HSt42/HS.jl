@@ -1,22 +1,21 @@
 using JGCM
 
+
 function Atmos_Spectral_Dynamics_Main(physcis_params::Dict{String, Float64}, end_day::Int64, spinup_day::Int64, L::Float64)
     # the decay of a sinusoidal disturbance to a zonally symmetric flow 
     # that resembles that found in the upper troposphere in Northern winter.
     # parameters
-    name = "Spectral_Dynamics"
+    name                = "Spectral_Dynamics"
     num_fourier, nθ, nd = 42, 64, 20
-
-    num_spherical = num_fourier + 1
-    nλ = 2nθ
+    # num_fourier, nθ, nd = 21, 32, 20
+    num_spherical       = num_fourier + 1
+    nλ                  = 2nθ
     
-    radius = 6371000.0
-    omega = 7.292e-5
+    radius           = 6371000.0
+    omega            = 7.292e-5
     sea_level_ps_ref = 1.0e5
-    init_t = 264.0
+    init_t           = 264.0
 
-    ps_ref = sea_level_ps_ref
-    t_ref = fill(300.0, nd)
     
     # Initialize mesh
     mesh = Spectral_Spherical_Mesh(num_fourier, num_spherical, nθ, nλ, nd, radius)
@@ -38,14 +37,14 @@ function Atmos_Spectral_Dynamics_Main(physcis_params::Dict{String, Float64}, end
     
     # Initialize integrator
     damping_order = 8
-    damping_coef = 1.15741e-4
-    robert_coef  = 0.04 
+    damping_coef  = 1.15741e-4
+    robert_coef   = 0.04 
     
     implicit_coef = 0.5
-    day_to_sec = 86400
-    start_time = 0
-    end_time = end_day*day_to_sec  
-    Δt = 600
+    day_to_sec    = 86400
+    start_time    = 0
+    end_time      = end_day*day_to_sec  
+    Δt            = 600
     ### CJY
     if warm_start_file_name != "None" 
         init_step = false # => In leapfrog would NOT do damping at initital time (should use in warm start case)
@@ -57,16 +56,22 @@ function Atmos_Spectral_Dynamics_Main(physcis_params::Dict{String, Float64}, end
     damping_order, damping_coef, mesh.laplacian_eig,
     implicit_coef, Δt, init_step, start_time, end_time)
 
-    semi_implicit = Semi_Implicit_Solver(vert_coord, atmo_data, integrator, ps_ref, t_ref, mesh.wave_numbers)
+    ps_ref        = sea_level_ps_ref
+    t_ref         = fill(300.0, nd)
+    wave_numbers  = mesh.wave_numbers
+    semi_implicit = Semi_Implicit_Solver(vert_coord, atmo_data, integrator, ps_ref, t_ref, wave_numbers)
         
     # Initialize data
     # By CJY edit for passive tracer
     num_grid_tracters = 1
     num_spe_tracters  = 1
     dyn_data = Dyn_Data(name, num_fourier, num_spherical, nλ, nθ, nd,num_grid_tracters ,num_spe_tracters) ### origin = Dyn_Data(name, num_fourier, num_spherical, nλ, nθ, nd)
-
+    
+    
     NT = Int64(end_time / Δt)
+    
     Get_Topography!(dyn_data.grid_geopots, warm_start_file_name, initial_day)
+    
     Spectral_Initialize_Fields!(mesh, atmo_data, vert_coord, sea_level_ps_ref, init_t, dyn_data.grid_geopots, dyn_data, Δt, warm_start_file_name, initial_day)
     
     # Initialize output manager
@@ -82,7 +87,10 @@ function Atmos_Spectral_Dynamics_Main(physcis_params::Dict{String, Float64}, end
     for i = 2:NT
 
         Atmosphere_Update!(mesh, atmo_data, vert_coord, semi_implicit, dyn_data, physcis_params, L)
+    
         integrator.time += Δt
+        #@info integrator.time
+
         Update_Output!(op_man, dyn_data, integrator.time)
 
     end
