@@ -23,7 +23,8 @@ include("atmos_spectral/Semi_Implicit.jl")
 include("shared/Output_Manager.jl")
 
 # Params
-include("atmos_param/HS_Forcing.jl")
+include("atmos_param/atmos_param.jl")
+using .atmos_param
 
 # Applications
 include("atmos_spectral_barotropic/Barotropic_Dynamics.jl")

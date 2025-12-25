@@ -1117,7 +1117,7 @@ function Spectral_Dynamics_Physics!(semi_implicit::Semi_Implicit_Solver, atmo_da
     grid_u_p, grid_u, grid_u_n    = dyn_data.grid_u_p, dyn_data.grid_u_c, dyn_data.grid_u_n
     grid_v_p, grid_v, grid_v_n    = dyn_data.grid_v_p, dyn_data.grid_v_c, dyn_data.grid_v_n
     grid_ps_p, grid_ps, grid_ps_n = dyn_data.grid_ps_p, dyn_data.grid_ps_c, dyn_data.grid_ps_n
-    grid_t_p, grid_t, grid_t_n    = dyn_data.grid_t_p, dyn_data.grid_t_c, dyn_data.grid_t_n
+    grid_t_p, grid_t_c, grid_t_n    = dyn_data.grid_t_p, dyn_data.grid_t_c, dyn_data.grid_t_n
 
     # related quanties
     grid_p_half, grid_p_full = dyn_data.grid_p_half, dyn_data.grid_p_full
@@ -1144,7 +1144,7 @@ function Spectral_Dynamics_Physics!(semi_implicit::Semi_Implicit_Solver, atmo_da
     V_c      = zeros(((128,64,20)))
     za       = zeros(((128,64,20)))
     rho      = zeros(((128,64,20)))
-    V_c_loc, za_loc, rho_loc = Calculate_V_c_za_rho!(dyn_data, atmo_data, grid_p_half, grid_p_full, grid_ps, grid_t, grid_u, grid_v, grid_tracers_c)
+    V_c_loc, za_loc, rho_loc = Calculate_V_c_za_rho!(dyn_data, atmo_data, grid_p_half, grid_p_full, grid_ps, grid_t_c, grid_u, grid_v, grid_tracers_c)
 
     V_c     .= V_c_loc
     za      .= za_loc
@@ -1159,18 +1159,24 @@ function Spectral_Dynamics_Physics!(semi_implicit::Semi_Implicit_Solver, atmo_da
     do_Implicit_PBL_Scheme       = true
     
     if do_large_scale_precipitation == true
-        HS_forcing_water_vapor!(semi_implicit, dyn_data, grid_tracers_n,  grid_t_n, grid_δt, grid_p_full, grid_u, grid_v, grid_δtracers, grid_tracers_c, grid_t, grid_tracers_diff, factor3, L)
+        lscale_cond!(
+            semi_implicit, grid_p_full,
+            grid_t_c, grid_tracers_c,
+            grid_δt, grid_δtracers, factor3, 
+            L
+        )
+
         grid_tracers_c[grid_tracers_c .< 0]   .= 0     
     
         
         grid_tracers_c .= grid_tracers_c .- grid_δtracers .* (2*Δt)
-        grid_t         .= grid_t         .+ grid_δt       .* (2*Δt)
+        grid_t_c       .= grid_t_c       .+ grid_δt       .* (2*Δt)
     
         Trans_Grid_To_Spherical!(mesh, grid_tracers_c, spe_tracers_c)
         Trans_Spherical_To_Grid!(mesh, spe_tracers_c, grid_tracers_c)
         
-        Trans_Grid_To_Spherical!(mesh, grid_t, spe_t_c)
-        Trans_Spherical_To_Grid!(mesh, spe_t_c, grid_t)
+        Trans_Grid_To_Spherical!(mesh, grid_t_c, spe_t_c)
+        Trans_Spherical_To_Grid!(mesh, spe_t_c, grid_t_c)
         
         grid_δtracers .= 0.
         grid_δt       .= 0.
@@ -1178,24 +1184,24 @@ function Spectral_Dynamics_Physics!(semi_implicit::Semi_Implicit_Solver, atmo_da
 
     # Calculate grid_δt(.+=) and grid_t(.=)
     if do_Sensible_heat_fluxes == true
-        Sensible_heat_fluxes!(mesh, atmo_data, grid_t, grid_t_n, grid_tracers_c, grid_δt, V_c, Δt, za)
-        Trans_Grid_To_Spherical!(mesh, grid_t, spe_t_c)
-        Trans_Spherical_To_Grid!(mesh, spe_t_c, grid_t)
+        Sensible_heat_fluxes!(mesh, atmo_data, grid_t_c, grid_t_n, grid_tracers_c, grid_δt, V_c, Δt, za)
+        Trans_Grid_To_Spherical!(mesh, grid_t_c, spe_t_c)
+        Trans_Spherical_To_Grid!(mesh, spe_t_c, grid_t_c)
     end
 
     if do_Surface_evaporation == true
         # Calculate grid_δtracers(.+=) and grid_tracers_c(.=)  (Latent_heat_flux! == Surface_evaporation!)
-        Surface_evaporation!(mesh, atmo_data, grid_t, grid_tracers_c, grid_tracers_n, grid_δtracers, grid_ps, V_c, za, Δt, factor1)
+        Surface_evaporation!(mesh, atmo_data, grid_t_c, grid_tracers_c, grid_tracers_n, grid_δtracers, grid_ps, V_c, za, Δt, factor1)
         Trans_Grid_To_Spherical!(mesh, grid_tracers_c, spe_tracers_c)
         Trans_Spherical_To_Grid!(mesh, spe_tracers_c, grid_tracers_c)
     end
 
     # Calculate {grid_δtracers(.+=) and grid_tracers_c(.=)} and {grid_δt(.+=) and grid_t(.=)}
     if do_Implicit_PBL_Scheme == true
-        Implicit_PBL_Scheme!(atmo_data, grid_t, grid_t_n, grid_tracers_c, grid_tracers_n, grid_δtracers, grid_δt, grid_p_full, grid_p_half, V_c, za, Δt, factor2, K_E, rho)
+        Implicit_PBL_Scheme!(atmo_data, grid_t_c, grid_t_n, grid_tracers_c, grid_tracers_n, grid_δtracers, grid_δt, grid_p_full, grid_p_half, V_c, za, Δt, factor2, K_E, rho)
     
-        Trans_Grid_To_Spherical!(mesh, grid_t, spe_t_c)
-        Trans_Spherical_To_Grid!(mesh, spe_t_c, grid_t)
+        Trans_Grid_To_Spherical!(mesh, grid_t_c, spe_t_c)
+        Trans_Spherical_To_Grid!(mesh, spe_t_c, grid_t_c)
         
         Trans_Grid_To_Spherical!(mesh, grid_tracers_c, spe_tracers_c)
         Trans_Spherical_To_Grid!(mesh, spe_tracers_c, grid_tracers_c)
@@ -1243,37 +1249,6 @@ function Atmosphere_Update!(mesh::Spectral_Spherical_Mesh, atmo_data::Atmo_Data,
     return
 end 
 
-
-function HS_forcing_water_vapor!(semi_implicit::Semi_Implicit_Solver, dyn_data::Dyn_Data, grid_tracers_n::Array{Float64, 3},  grid_t_n::Array{Float64, 3}, grid_δt::Array{Float64, 3}, grid_p_full::Array{Float64, 3}, grid_u::Array{Float64, 3},  grid_v::Array{Float64, 3}, grid_δtracers::Array{Float64, 3}, grid_tracers_c::Array{Float64, 3}, grid_t::Array{Float64, 3}, grid_tracers_diff::Array{Float64, 3}, factor3::Array{Float64, 3}, L::Float64)
-
-    integrator = semi_implicit.integrator
-    Δt         = Get_Δt(integrator)
-    # These params are different to what we use in Atmo_Data. What a stupid...
-    cp         = 1004. #
-    Lv         = 2.5*10^6.
-    Rd         = 287.04 
-    Rv         = 461. #
-    
-    #grid_tracers_c_max     = deepcopy(grid_tracers_c)
-    es = 611.12 .* exp.(Lv ./ Rv .* (1. ./ 273.15 .- 1. ./ grid_t))
-    grid_tracers_c_max = (0.622 .* es) ./ (grid_p_full .- 0.378 .* es) 
-    dq_sat_dT          = Lv.*grid_tracers_c_max./ (Rv .*grid_t.^2)
-    #@info "max: ", maximum(dq_sat_dT)
-    # grid_d_full2 = dyn_data.grid_d_full2
-    # @info maximum(grid_d_full2), minimum(grid_d_full2)
-
-    ### Condensation_rate == grid_tracers_diff
-    factor3       .= (max.(grid_tracers_c, grid_tracers_c_max) .- grid_tracers_c_max) ./ (1 .+ (Lv / cp) .* dq_sat_dT) ./(2 .* Δt)
-    # grid_tracers_c       .-= (max.(grid_tracers_c, grid_tracers_c_max) .- grid_tracers_c_max) ./ (1 .+ (Lv / cp) .* dq_sat_dT)
-    ### error ###
-    grid_δtracers .= copy(factor3)
-    #############
-    grid_δt         .= (factor3 .* Lv ./ cp) .* L 
-    # latent heat feedback to temperature tendency 
-    # diabatic_heating  = deepcopy(grid_tracers_diff)
-    # diabatic_heating .= (grid_tracers_diff .* Lv ./ cp) ./day_to_sec .* L 
-    # @info "max: ", maximum(diabatic_heating)
-end
 
 function Calculate_V_c_za_rho!(dyn_data::Dyn_Data, atmo_data::Atmo_Data, grid_p_half::Array{Float64, 3}, grid_p_full::Array{Float64, 3}, grid_ps::Array{Float64, 3}, grid_t::Array{Float64, 3}, grid_u::Array{Float64, 3}, grid_v::Array{Float64, 3}, grid_tracers_c::Array{Float64, 3})
     ##
