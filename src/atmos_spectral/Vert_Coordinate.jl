@@ -13,38 +13,35 @@ where p_ref  is a constant reference pressure and p_surf is the instantaneous su
 """
 
 mutable struct Vert_Coordinate
-    nλ::Int64
-    nθ::Int64
-    nd::Int64
-    vert_coord_option::String
-    vert_difference_option::String
-    vert_advect_scheme::String 
+    nλ::Int64                           # number of zonal grids
+    nθ::Int64                           # number of meridional grids
+    nd::Int64                           # number of vertical levels
+    vert_coord_option::String           # vertical coordinate strategy
+    vert_difference_option::String      # vertical finite difference scheme
+    vert_advect_scheme::String          # vertical advection scheme
     
     
-    p_ref::Float64
-    zero_top::Bool
+    p_ref::Float64                      # reference pressure
+    zero_top::Bool                      # zero pressure-top flag
     
     # ak[nd+1] = 0, bk[nd+1] = 1, bk[1] = 0
-    ak::Array{Float64, 1}
-    bk::Array{Float64, 1}
+    ak::Array{Float64, 1}               # hybrid pressure coefficients
+    bk::Array{Float64, 1}               # hybrid sigma coefficients
     
-    Δak::Array{Float64, 1}
-    Δbk::Array{Float64, 1}
+    Δak::Array{Float64, 1}              # layer thickness (pressure part)
+    Δbk::Array{Float64, 1}              # layer thickness (sigma part)
     
     # memory container
-    flux::Array{ComplexF64, 3}
-    vert_integral::Array{Float64, 3}
-    
-    
-    
+    flux::Array{ComplexF64, 3}          # allocation of vertical flux
+    vert_integral::Array{Float64, 3}    # allocation of vertical integral
+     
 end
 
 function Vert_Coordinate(nλ::Int64, nθ::Int64, nd::Int64,
-    vert_coord_option::String, vert_difference_option::String, vert_advect_scheme::String,
-    p_ref::Float64 = 101325., zero_top::Bool = true,
-    scale_heights::Float64 = 4.0, surf_res::Float64 = 1.0, 
-    p_press::Float64 = 0.1,  p_sigma::Float64 = 0.3,  exponent::Float64 = 2.5)
-    
+                         vert_coord_option::String, vert_difference_option::String, vert_advect_scheme::String,
+                         p_ref::Float64 = 101325., zero_top::Bool = true,
+                         scale_heights::Float64 = 4.0, surf_res::Float64 = 1.0, 
+                         p_press::Float64 = 0.1,  p_sigma::Float64 = 0.3,  exponent::Float64 = 2.5)
     ak, bk = Compute_Vert_Coord(nd, vert_coord_option, p_ref, zero_top, scale_heights, surf_res, p_press,  p_sigma, exponent)
     Δak, Δbk = ak[2:nd+1]-ak[1:nd], bk[2:nd+1]-bk[1:nd]
     
@@ -54,7 +51,6 @@ function Vert_Coordinate(nλ::Int64, nθ::Int64, nd::Int64,
     flux, vert_integral)
     
 end
-
 
 
 
@@ -122,8 +118,7 @@ function Compute_Even_Sigma(nd::Int64)
     return a, b
 end 
 
-
-function Compute_Uneven_Sigma(nd::Int64,  scale_heights::Float64, surf_res::Float64, exponent::Float64, zero_top::Bool)
+function Compute_Uneven_Sigma(nd::Int64, scale_heights::Float64, surf_res::Float64, exponent::Float64, zero_top::Bool)
     """
     ζ = 1 - (k-1]/nd
     b = exp( -(surf_res*ζ + (1.0 - surf_res)*(ζ^exponent))* scale_heights)
@@ -155,7 +150,6 @@ function Compute_V197_Sigma()
     0.3360768; 0.4170096; 0.5000000; 0.5829904; 0.6639231; 0.7407407;  
     0.8113854; 0.8737997; 0.9259259; 0.9657064; 0.9910837; 1.0]
     
-    
     return a, b
 end 
 
@@ -172,8 +166,6 @@ end
 
 
 
-
-
 function Vert_Advection!(vert_coord::Vert_Coordinate, r::Array{Float64,3}, dz::Array{Float64, 3},  w::Array{Float64,3}, Δt::Int64, vert_advect_scheme::String, rdt::Array{Float64,3})
     """
     Consider the coordinate from atmosphere top to the surface,
@@ -187,12 +179,12 @@ function Vert_Advection!(vert_coord::Vert_Coordinate, r::Array{Float64,3}, dz::A
     w is nλ, nθ, nd+1
     r and dz are nλ, nθ, nd
     """
-    nd = vert_coord.nd
+    nd   = vert_coord.nd
     flux = vert_coord.flux
     
     # no flux boundary condition
-    flux[:,:,1]    .= 0.0
-    flux[:,:,nd+1] .= 0.0
+    flux[:, :, 1]    .= 0.0
+    flux[:, :, nd+1] .= 0.0
     #     #todo not upwind, use information from inside
     #     flux[:,:,1]   = w[:,:,1]  *r[:,:,1]
     #     flux[:,:,nd+1] = w[:,:,nd+1]*r[:,:,nd]
@@ -201,34 +193,31 @@ function Vert_Advection!(vert_coord::Vert_Coordinate, r::Array{Float64,3}, dz::A
     if vert_advect_scheme == "second_centered_wts"
         flux[:,:,2:nd] .= w[:,:,2:nd] .* (r[:,:,1:nd-1] + (r[:,:,2:nd] - r[:,:,1:nd-1]).* dz[:,:,1:nd-1] ./(dz[:,:,1:nd-1] + dz[:,:,2:nd]))
         
-        #  2nd-order centered scheme assuming uniform grid spacing ------
+    #  2nd-order centered scheme assuming uniform grid spacing ------
     elseif vert_advect_scheme == "second_centered"
         flux[:,:,2:nd] .= w[:,:,2:nd] .* (r[:,:,1:nd-1]+r[:,:,2:nd])/2.0
     else 
         error("vert_advect_scheme ", vert_advect_scheme, " is not a valid value for option")
     end
     
-    
-    
     rdt[:,:,1:nd] .= (flux[:,:,1:nd] - flux[:,:,2:nd+1] + r[:,:,1:nd].*(w[:,:,2:nd+1]-w[:,:,1:nd])) ./ dz[:,:,1:nd]
-    
     
 end
 
 
 
-
 function Mass_Weighted_Global_Integral(vert_coord::Vert_Coordinate, mesh::Spectral_Spherical_Mesh, atmo_data::Atmo_Data,
-    grid_data::Array{Float64, 3}, grid_ps::Array{Float64, 3})
+                                       grid_data::Array{Float64, 3}, grid_ps::Array{Float64, 3})
     """
     !  This function returns the mass weighted vertical integral of field,
     !  area averaged over the globe. The units of the result are:
     !  (units of field)*(Kg/meters**2)
+
     """
     
-    grav = atmo_data.grav
-    nd = vert_coord.nd
-    Δak, Δbk = vert_coord.Δak, vert_coord.Δbk
+    grav          = atmo_data.grav
+    nd            = vert_coord.nd
+    Δak, Δbk      = vert_coord.Δak, vert_coord.Δbk
     vert_integral = vert_coord.vert_integral
     
     Δp = similar(grid_ps)

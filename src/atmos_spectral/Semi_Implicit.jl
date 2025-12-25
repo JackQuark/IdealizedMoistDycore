@@ -249,96 +249,79 @@ function Linear_Geopot_δps(vert_coord::Vert_Coordinate, atmo_data::Atmo_Data,
   #
   # This function compute ∂Φ∂ps_ref
 
-  nd = vert_coord.nd
-  rdgas = atmo_data.rdgas
-  δgeopot_ref = zeros(Float64, nd)
-  δgeopot_half_ref = zeros(Float64, nd+1)
-  
-  for k=nd:-1:2
-    δgeopot_half_ref[k] = δgeopot_half_ref[k+1] + rdgas*(t_ref[k]*(δlnp_half_ref[k+1] - δlnp_half_ref[k]))
-  end
-  
-  for k=1:nd
-    δgeopot_ref[k] = δgeopot_half_ref[k+1] + rdgas*(t_ref[k]*(δlnp_half_ref[k+1] - δlnp_full_ref[k]))
-  end
-  
-  return δgeopot_ref
+
+
+    nd               = vert_coord.nd
+    rdgas            = atmo_data.rdgas
+    δgeopot_ref      = zeros(Float64, nd)
+    δgeopot_half_ref = zeros(Float64, nd+1)
+    
+    for k=nd:-1:2
+        δgeopot_half_ref[k] = δgeopot_half_ref[k+1] + rdgas*(t_ref[k]*(δlnp_half_ref[k+1] - δlnp_half_ref[k]))
+    end
+    
+    for k=1:nd
+        δgeopot_ref[k] = δgeopot_half_ref[k+1] + rdgas*(t_ref[k]*(δlnp_half_ref[k+1] - δlnp_full_ref[k]))
+    end
+    
+    return δgeopot_ref
 end
 
 
 function Linear_Ps_T_δdiv!(vert_coord::Vert_Coordinate, atmo_data::Atmo_Data, spe_δdiv::Array{ComplexF64,3}, 
-  ps_ref::Float64, Δp_ref::Array{Float64,1}, 
-  lnp_half_ref::Array{Float64,1}, lnp_full_ref::Array{Float64,1}, 
-  t_ref::Array{Float64,1}, 
-  spe_M_half::Array{ComplexF64,3}, spe_Mdt_half::Array{ComplexF64,3},
-  spe_δps::Array{ComplexF64,3}, spe_δt::Array{ComplexF64,3})
-  # For temperature 
-  # δ(-dσ∂T∂σ + κTw/p) = -tau δdiv
-  #                    = δ(-dσ∂T∂σ + κTw/p)
-  #                    = δ(-dσ∂T∂σ) + [κT]_ref δ(w/p) (D_r depends on div)
-  #                    
-  # dmeam = D_k = div_k Δp_k, dmean_tot = ∑_{r=1}^{k-1} div_r Δp_r =  ∑_{r=1}^{k-1} Dr
-  # w_k/p_k = dlnp/dt = ∂lnp/∂t + dσ ∂lnp/∂σ + v∇lnp
-  #         = -[(∑_{r=1}^{k-1} Dr)(lnp_k+1/2 - lnp_k-1/2) + D_k(lnp_k+1/2 - lnp_k)]/Δp_k + v∇lnp
-  #         = -[(∑_{r=1}^{k-1} Dr)(lnp_k+1/2 - lnp_k-1/2) + D_k(lnp_k+1/2 - lnp_k)]/Δp_k (∇lnp = 0)
-  #
-  # ∂ps/∂t = -∑ div_r Δp_r = -dmean_tot
-  # M_{k+1/2} = -∑_{r=1}^k ∇(vrΔp_r) - B_{k+1/2}∂ps/∂t
-  # The vertical discretization is 
-  # [dσ∂T/∂σ]_k = 0.5(M_{k+1/2}(T_k+1 - T_k) + M_{k-1/2}(T_k - T_k-1))/Δp_k
-  #
-  # For surface pressure
-  # δ(-∑∇(vk Δpk)) = δ(-∑div_k Δpk ) = -∑Δpk δdiv_k  = -nu δdiv
-  #
-  # div = [0,0, ..1,...0], spe_δps -> -nu, spe_δt ->  -tau[:,k]
-  
-  kappa = atmo_data.kappa
-  nf, ns, nd = size(spe_δdiv)
-  vert_difference_option = vert_coord.vert_difference_option
-  nd = vert_coord.nd
-  Δak, Δbk, bk = vert_coord.Δak, vert_coord.Δbk, vert_coord.bk
+                           ps_ref::Float64, Δp_ref::Array{Float64,1}, 
+                           lnp_half_ref::Array{Float64,1}, lnp_full_ref::Array{Float64,1}, 
+                           t_ref::Array{Float64,1}, 
+                           spe_M_half::Array{ComplexF64,3}, spe_Mdt_half::Array{ComplexF64,3},
+                           spe_δps::Array{ComplexF64,3}, spe_δt::Array{ComplexF64,3})
+    """
+    """
+    
+    kappa                  = atmo_data.kappa
+    nf, ns, nd             = size(spe_δdiv)
+    vert_difference_option = vert_coord.vert_difference_option
+    nd                     = vert_coord.nd
+    Δak, Δbk, bk           = vert_coord.Δak, vert_coord.Δbk, vert_coord.bk
 
-  dmean_tot = zeros(ComplexF64, nf, ns)
-  dmean = zeros(ComplexF64, nf, ns)
+    dmean_tot = zeros(ComplexF64, nf, ns)
+    dmean     = zeros(ComplexF64, nf, ns)
 
-  if(vert_difference_option == "simmons_and_burridge") 
-    for k=1:nd
-      @assert(Δak[k] + Δbk[k]*ps_ref ≈ Δp_ref[k])
+    if(vert_difference_option == "simmons_and_burridge") 
+        for k=1:nd
+            @assert(Δak[k] + Δbk[k]*ps_ref ≈ Δp_ref[k])
 
-      Δlnp_p = lnp_half_ref[k+1] - lnp_full_ref[k]
-      Δlnp = lnp_half_ref[k+1] - lnp_half_ref[k]
-      # dmean = ∇ (vk Δp_k) = ∇vk Δp_k = Dk
-      dmean .= spe_δdiv[:,:,k]*Δp_ref[k]
- 
-      spe_δt[:,:,k] .=  - kappa*t_ref[k]*(dmean_tot*Δlnp + dmean*Δlnp_p)/Δp_ref[k]
-      # dmean_tot = ∑_r=1^k Dr
-      dmean_tot .+= dmean
-      spe_M_half[:,:,k+1] .= -dmean_tot
+            Δlnp_p = lnp_half_ref[k+1] - lnp_full_ref[k]
+            Δlnp = lnp_half_ref[k+1] - lnp_half_ref[k]
+            # dmean = ∇ (vk Δp_k) = ∇vk Δp_k = Dk
+            dmean .= spe_δdiv[:,:,k]*Δp_ref[k]
+      
+            spe_δt[:,:,k] .=  - kappa*t_ref[k]*(dmean_tot*Δlnp + dmean*Δlnp_p)/Δp_ref[k]
+            # dmean_tot = ∑_r=1^k Dr
+            dmean_tot .+= dmean
+            spe_M_half[:,:,k+1] .= -dmean_tot
+        end
     end
-  end
-  
-  spe_δps[:,:,1] .= -dmean_tot
-  
-  for k=1:nd-1
-    spe_M_half[:,:,k+1] .+= dmean_tot*bk[k+1]
-  end
+    
+    spe_δps[:,:,1] .= -dmean_tot
+    
+    for k=1:nd-1
+        spe_M_half[:,:,k+1] .+= dmean_tot*bk[k+1]
+    end
 
-  spe_M_half[:,:,1] .= 0.0
-  spe_M_half[:,:,nd + 1] .= 0.0
-  
-  #approximate the vertical advection term
-  for k=2:nd
-    spe_Mdt_half[:,:,k] .= spe_M_half[:,:,k]*(t_ref[k] - t_ref[k-1])
-  end
-  
-  spe_Mdt_half[:,:,1]    .= 0.0
-  spe_Mdt_half[:,:,nd+1] .= 0.0
-  for k=1:nd
-    spe_δt[:,:,k] .-= 0.5*(spe_Mdt_half[:,:,k+1] + spe_Mdt_half[:,:,k])/Δp_ref[k] 
-  end
-end 
-
-
+    spe_M_half[:,:,1] .= 0.0
+    spe_M_half[:,:,nd + 1] .= 0.0
+    
+    #approximate the vertical advection term
+    for k=2:nd
+        spe_Mdt_half[:,:,k] .= spe_M_half[:,:,k]*(t_ref[k] - t_ref[k-1])
+    end
+    
+    spe_Mdt_half[:,:,1]    .= 0.0
+    spe_Mdt_half[:,:,nd+1] .= 0.0
+    for k=1:nd
+        spe_δt[:,:,k] .-= 0.5*(spe_Mdt_half[:,:,k+1] + spe_Mdt_half[:,:,k])/Δp_ref[k] 
+    end
+    end 
 
 
 
@@ -356,48 +339,45 @@ I^d(T(i-1) - T(i) + ξΔt, lnps(i-1) - lnps(i) + ξΔlnps)
 """
 
 function Adjust_δlnps_δt_δdiv!(semi_implicit::Semi_Implicit_Solver, vert_coord::Vert_Coordinate, atmo_data::Atmo_Data,
-  spe_div_c::Array{ComplexF64,3}, spe_div_p::Array{ComplexF64,3},
-  spe_lnps_c::Array{ComplexF64,3}, spe_lnps_p::Array{ComplexF64,3},
-  spe_t_c::Array{ComplexF64,3}, spe_t_p::Array{ComplexF64,3},  
-  spe_δdiv::Array{ComplexF64,3}, spe_δlnps::Array{ComplexF64,3}, spe_δt::Array{ComplexF64,3})
+                               spe_div_c::Array{ComplexF64,3}, spe_div_p::Array{ComplexF64,3},
+                               spe_lnps_c::Array{ComplexF64,3}, spe_lnps_p::Array{ComplexF64,3},
+                               spe_t_c::Array{ComplexF64,3}, spe_t_p::Array{ComplexF64,3},  
+                               spe_δdiv::Array{ComplexF64,3}, spe_δlnps::Array{ComplexF64,3}, spe_δt::Array{ComplexF64,3})
   
-  t_ref, ps_ref, Δp_ref, lnp_half_ref, lnp_full_ref = semi_implicit.t_ref, semi_implicit.ps_ref, semi_implicit.Δp_ref, semi_implicit.lnp_half_ref, semi_implicit.lnp_full_ref
-  laplacian_eigen, h = semi_implicit.integrator.laplacian_eigen, semi_implicit.h
-  
-  spe_δdiv_temp, spe_δps_temp, spe_δt_temp, spe_δgeopot_half_temp, spe_δgeopot_temp = semi_implicit.spe_δdiv_temp, 
-  semi_implicit.spe_δps_temp, semi_implicit.spe_δt_temp, semi_implicit.spe_δgeopot_half_temp, semi_implicit.spe_δgeopot_temp
+    t_ref, ps_ref, Δp_ref, lnp_half_ref, lnp_full_ref = semi_implicit.t_ref, semi_implicit.ps_ref, semi_implicit.Δp_ref, semi_implicit.lnp_half_ref, semi_implicit.lnp_full_ref
+    laplacian_eigen, h = semi_implicit.integrator.laplacian_eigen, semi_implicit.h
+    
+    spe_δdiv_temp, spe_δps_temp, spe_δt_temp, spe_δgeopot_half_temp, spe_δgeopot_temp = semi_implicit.spe_δdiv_temp, 
+    semi_implicit.spe_δps_temp, semi_implicit.spe_δt_temp, semi_implicit.spe_δgeopot_half_temp, semi_implicit.spe_δgeopot_temp
 
-  spe_δdiv_temp .= spe_div_p - spe_div_c
-  
-  #spe_M_half::Array{ComplexF64,3}, spe_Mdt_half::Array{ComplexF64,3},
-  spe_M_half_temp, spe_Mdt_half_temp = semi_implicit.spe_M_half_temp, semi_implicit.spe_Mdt_half_temp
+    spe_δdiv_temp .= spe_div_p - spe_div_c
+    
+    #spe_M_half::Array{ComplexF64,3}, spe_Mdt_half::Array{ComplexF64,3},
+    spe_M_half_temp, spe_Mdt_half_temp = semi_implicit.spe_M_half_temp, semi_implicit.spe_Mdt_half_temp
 
-  # compute linearized δt, with constant surface pressure 
-  Linear_Ps_T_δdiv!(vert_coord, atmo_data, spe_δdiv_temp, ps_ref, Δp_ref, lnp_half_ref, lnp_full_ref, t_ref, 
-  spe_M_half_temp, spe_Mdt_half_temp, spe_δps_temp, spe_δt_temp)
+    # compute linearized δt, with constant surface pressure 
+    Linear_Ps_T_δdiv!(vert_coord, atmo_data, spe_δdiv_temp, ps_ref, Δp_ref, lnp_half_ref, lnp_full_ref, t_ref, 
+    spe_M_half_temp, spe_Mdt_half_temp, spe_δps_temp, spe_δt_temp)
 
-  spe_δt    .+= spe_δt_temp
-  spe_δlnps .+= spe_δps_temp/ps_ref
+    spe_δt    .+= spe_δt_temp
+    spe_δlnps .+= spe_δps_temp/ps_ref
 
-  #use as a memory container
-  spe_δlnps_temp = semi_implicit.spe_δps_temp
+    #use as a memory container
+    spe_δlnps_temp = semi_implicit.spe_δps_temp
 
-  #todo
-  ξ = Get_ξ(semi_implicit.integrator)
-  
-  spe_δt_temp    .= spe_t_p - spe_t_c + ξ*spe_δt 
-  spe_δlnps_temp .= spe_lnps_p - spe_lnps_c + ξ*spe_δlnps
+    #todo
+    ξ = Get_ξ(semi_implicit.integrator)
+    
+    spe_δt_temp    .= spe_t_p - spe_t_c + ξ*spe_δt 
+    spe_δlnps_temp .= spe_lnps_p - spe_lnps_c + ξ*spe_δlnps
 
-  
-  
-  Linear_Geopot_δt!(vert_coord, atmo_data, lnp_half_ref, lnp_full_ref, spe_δt_temp, t_ref, spe_δgeopot_half_temp, spe_δgeopot_temp) 
-  
-  
-  nd = vert_coord.nd
+    Linear_Geopot_δt!(vert_coord, atmo_data, lnp_half_ref, lnp_full_ref, spe_δt_temp, t_ref, spe_δgeopot_half_temp, spe_δgeopot_temp) 
+    
+    nd = vert_coord.nd
 
-  for k=1:nd
-    spe_δdiv[:,:,k] .-= laplacian_eigen.*(spe_δgeopot_temp[:,:,k] .+ h[k]*ps_ref*spe_δlnps_temp[:,:,1])
-  end
+    for k=1:nd
+        spe_δdiv[:,:,k] .-= laplacian_eigen.*(spe_δgeopot_temp[:,:,k] .+ h[k]*ps_ref*spe_δlnps_temp[:,:,1])
+    end
   
 end 
 
@@ -448,113 +428,110 @@ Then we have
 δdiv  = Δdiv + ξ^2 I^d( I^t( δdiv),  I^p(δdiv))
 
 Solve for δdiv, δt, δlnps sequentially
-  δdiv  = Δdiv - ξ^2 ∇^2(γ I^t( δdiv) + (H2+H1) ps_ref I^p(δdiv))
-        = Δdiv - ξ^2 ∇^2(γ (-τ) δdiv + (H2+H1) ps_ref (-ν) δdiv / ps_ref)
-        = Δdiv - ξ^2 ∇^2(γ (-τ) δdiv + (H2+H1)  (-ν) δdiv)
-  (1 - ξ^2 ∇^2(γ τ + (H2+H1)ν)δdiv = Δdiv
-  
-  
-  wave_matrix[:,:,s] = (I + ξ^2 (γ τ + (H2+H1)ν) s(s+1)/r^2)^{-1}
+    δdiv  = Δdiv - ξ^2 ∇^2(γ I^t( δdiv) + (H2+H1) ps_ref I^p(δdiv))
+          = Δdiv - ξ^2 ∇^2(γ (-τ) δdiv + (H2+H1) ps_ref (-ν) δdiv / ps_ref)
+          = Δdiv - ξ^2 ∇^2(γ (-τ) δdiv + (H2+H1)  (-ν) δdiv)
+    (1 - ξ^2 ∇^2(γ τ + (H2+H1)ν)δdiv = Δdiv
+
+    wave_matrix[:,:,s] = (I + ξ^2 (γ τ + (H2+H1)ν) s(s+1)/r^2)^{-1}
+
 """
 
 function Implicit_Correction!(semi_implicit::Semi_Implicit_Solver, vert_coord::Vert_Coordinate, atmo_data::Atmo_Data,
-  spe_div_c::Array{ComplexF64,3}, spe_div_p::Array{ComplexF64,3}, 
-  spe_lnps_c::Array{ComplexF64,3}, spe_lnps_p::Array{ComplexF64,3},
-  spe_t_c::Array{ComplexF64,3}, spe_t_p::Array{ComplexF64,3}, 
-  spe_δdiv::Array{ComplexF64,3}, spe_δlnps::Array{ComplexF64,3}, spe_δt::Array{ComplexF64,3})
+                              spe_div_c::Array{ComplexF64,3}, spe_div_p::Array{ComplexF64,3}, 
+                              spe_lnps_c::Array{ComplexF64,3}, spe_lnps_p::Array{ComplexF64,3},
+                              spe_t_c::Array{ComplexF64,3}, spe_t_p::Array{ComplexF64,3}, 
+                              spe_δdiv::Array{ComplexF64,3}, spe_δlnps::Array{ComplexF64,3}, spe_δt::Array{ComplexF64,3})
   
-  #todo
+    #todo
 
-  ξ = Get_ξ(semi_implicit.integrator)
+    ξ = Get_ξ(semi_implicit.integrator)
 
+    Adjust_δlnps_δt_δdiv!(semi_implicit, vert_coord, atmo_data,
+    spe_div_c, spe_div_p,
+    spe_lnps_c, spe_lnps_p,
+    spe_t_c, spe_t_p,  
+    spe_δdiv, spe_δlnps, spe_δt)
 
+    num_wavenumbers = semi_implicit.num_wavenumbers
+    wave_numbers    = semi_implicit.wave_numbers
+    wave_matrix     = semi_implicit.wave_matrix
 
-  Adjust_δlnps_δt_δdiv!(semi_implicit, vert_coord, atmo_data,
-  spe_div_c, spe_div_p,
-  spe_lnps_c, spe_lnps_p,
-  spe_t_c, spe_t_p,  
-  spe_δdiv, spe_δlnps, spe_δt)
-
-
-  num_wavenumbers = semi_implicit.num_wavenumbers
-  wave_numbers = semi_implicit.wave_numbers
-  wave_matrix = semi_implicit.wave_matrix
-
-
-  nf, ns, nd = size(spe_δdiv)
-  for m = 0:nf-1
-    for n = m:ns-1
-      L = wave_numbers[m+1,n+1]
-      @assert(L == n)
-      # does not need the last spherical mode
-      if (L <= num_wavenumbers) 
-        # @show size(spe_δdiv), size(wave_matrix), L
-        spe_δdiv[m+1,n+1,:] .= wave_matrix[:,:,L+1] * spe_δdiv[m+1,n+1,:]
-      end
+    nf, ns, nd = size(spe_δdiv)
+    for m = 0:nf-1
+          for n = m:ns-1
+            L = wave_numbers[m+1,n+1]
+            @assert(L == n)
+            # does not need the last spherical mode
+            if (L <= num_wavenumbers) 
+                # @show size(spe_δdiv), size(wave_matrix), L
+                spe_δdiv[m+1,n+1,:] .= wave_matrix[:,:,L+1] * spe_δdiv[m+1,n+1,:]
+            end
+        end 
     end 
-  end 
-  
-  t_ref, ps_ref, Δp_ref, lnp_half_ref, lnp_full_ref = semi_implicit.t_ref, semi_implicit.ps_ref, semi_implicit.Δp_ref, semi_implicit.lnp_half_ref, semi_implicit.lnp_full_ref
-  
-  spe_δps_temp, spe_δt_temp = semi_implicit.spe_δps_temp, semi_implicit.spe_δt_temp
-  spe_M_half_temp, spe_Mdt_half_temp = semi_implicit.spe_M_half_temp, semi_implicit.spe_Mdt_half_temp
+    
+    t_ref, ps_ref, Δp_ref, lnp_half_ref, lnp_full_ref = semi_implicit.t_ref, semi_implicit.ps_ref, semi_implicit.Δp_ref, semi_implicit.lnp_half_ref, semi_implicit.lnp_full_ref
+    
+    spe_δps_temp, spe_δt_temp = semi_implicit.spe_δps_temp, semi_implicit.spe_δt_temp
+    spe_M_half_temp, spe_Mdt_half_temp = semi_implicit.spe_M_half_temp, semi_implicit.spe_Mdt_half_temp
 
-  Linear_Ps_T_δdiv!(vert_coord, atmo_data, spe_δdiv, 
-  ps_ref, Δp_ref, lnp_half_ref, lnp_full_ref, t_ref, 
-  spe_M_half_temp, spe_Mdt_half_temp,
-  spe_δps_temp, spe_δt_temp)
-  
-  
-  spe_δt    .+= ξ*spe_δt_temp
-  spe_δlnps .+= ξ/ps_ref*spe_δps_temp
+    Linear_Ps_T_δdiv!(vert_coord, atmo_data, spe_δdiv, 
+    ps_ref, Δp_ref, lnp_half_ref, lnp_full_ref, t_ref, 
+    spe_M_half_temp, spe_Mdt_half_temp,
+    spe_δps_temp, spe_δt_temp)
+    
+    
+    spe_δt    .+= ξ*spe_δt_temp
+    spe_δlnps .+= ξ/ps_ref*spe_δps_temp
   
 end 
 
 
+
 if abspath(PROGRAM_FILE) == @__FILE__
+    # testing
+    # the decay of a sinusoidal disturbance to a zonally symmetric flow 
+    # that resembles that found in the upper troposphere in Northern winter.
+    name = "Spectral_Dynamics"
+    num_fourier, nθ, nd = 21, 32, 20
+    num_spherical = num_fourier + 1
+    nλ = 2nθ
 
-# the decay of a sinusoidal disturbance to a zonally symmetric flow 
-# that resembles that found in the upper troposphere in Northern winter.
-name = "Spectral_Dynamics"
-num_fourier, nθ, nd = 21, 32, 20
-num_spherical = num_fourier + 1
-nλ = 2nθ
+    radius = 6371.2e3
+    omega = 7.292e-5
+    sea_level_ps_ref = 101325.0
 
-radius = 6371.2e3
-omega = 7.292e-5
-sea_level_ps_ref = 101325.0
+    # Initialize mesh
+    mesh = Spectral_Spherical_Mesh(num_fourier, num_spherical, nθ, nλ, nd, radius)
+    θc, λc = mesh.θc,  mesh.λc
+    cosθ, sinθ = mesh.cosθ, mesh.sinθ
 
-# Initialize mesh
-mesh = Spectral_Spherical_Mesh(num_fourier, num_spherical, nθ, nλ, nd, radius)
-θc, λc = mesh.θc,  mesh.λc
-cosθ, sinθ = mesh.cosθ, mesh.sinθ
+    vert_coord = Vert_Coordinate(nλ, nθ, nd, "even_sigma", "simmons_and_burridge", "second_centered_wts")
+    # Initialize atmo_data
+    use_virtual_temperature = false
+    atmo_data = Atmo_Data(name, nλ, nθ, nd, use_virtual_temperature, sinθ, radius,  omega)
 
-vert_coord = Vert_Coordinate(nλ, nθ, nd, "even_sigma", "simmons_and_burridge", "second_centered_wts")
-# Initialize atmo_data
-use_virtual_temperature = false
-atmo_data = Atmo_Data(name, nλ, nθ, nd, use_virtual_temperature, sinθ, radius,  omega)
+    # Initialize integrator
+    damping_order = 4
+    damping_coef = 1.e-04
+    robert_coef  = 0.04 
 
-# Initialize integrator
-damping_order = 4
-damping_coef = 1.e-04
-robert_coef  = 0.04 
+    implicit_coef = 0.5
 
-implicit_coef = 0.5
+    start_time = 0.0 
+    end_time = 691200.0  #
+    Δt = 1200.0
+    init_step = true
+    integrator = Filtered_Leapfrog(robert_coef, 
+    damping_order, damping_coef, mesh.laplacian_eig,
+    implicit_coef,
+    Δt, init_step, start_time, end_time)
 
-start_time = 0.0 
-end_time = 691200.0  #
-Δt = 1200.0
-init_step = true
-integrator = Filtered_Leapfrog(robert_coef, 
-damping_order, damping_coef, mesh.laplacian_eig,
-implicit_coef,
-Δt, init_step, start_time, end_time)
-
-ps_ref = sea_level_ps_ref
-t_ref = fill(300.0, nd)
-wave_numbers = mesh.wave_numbers
-semi_implicit = Semi_Implicit_Solver(vert_coord, atmo_data,
-integrator, ps_ref, t_ref, wave_numbers)
+    ps_ref = sea_level_ps_ref
+    t_ref = fill(300.0, nd)
+    wave_numbers = mesh.wave_numbers
+    semi_implicit = Semi_Implicit_Solver(vert_coord, atmo_data,
+    integrator, ps_ref, t_ref, wave_numbers)
 
 end
 

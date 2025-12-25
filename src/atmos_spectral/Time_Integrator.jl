@@ -1,60 +1,64 @@
 export Filtered_Leapfrog, Update_Init_Step!, Get_Δt, Get_ξ, Compute_Spectral_Damping!, Filtered_Leapfrog!
 
 mutable struct Filtered_Leapfrog
-    robert_coef::Float64
+    robert_coef::Float64                 # Robert-Asselin Time Filter Coefficient
 
-    damping_order::Int64
-    damping_coef::Float64
-    damping::Array{Float64,2}
-    laplacian_eigen::Array{Float64,2}
+    damping_order::Int64                 # Hyper-diffusion Order
+    damping_coef::Float64                # Hyper-diffusion Coefficient
+    damping::Array{Float64,2}            # Spectral Damping Operator
+    laplacian_eigen::Array{Float64,2}    # Laplacian Eigenvalues
 
-    implicit_coef::Float64
+    implicit_coef::Float64               # Semi-Implicit Coefficient
 
-    Δt::Int64
-    init_step::Bool
-    time::Int64
-    start_time::Int64
-    end_time::Int64
+    Δt::Int64                            # Time Step
+    init_step::Bool                      # Initialization Step Flag
+    time::Int64                          # Current Simulation Time
+    start_time::Int64                    # Simulation Start Time
+    end_time::Int64                      # Simulation End Time
 
 end
 
-function Filtered_Leapfrog(robert_coef::Float64, 
+function Filtered_Leapfrog(robert_coef::Float64,
                            damping_order::Int64, damping_coef::Float64, eigen::Array{Float64,2},
                            implicit_coef::Float64,
                            Δt::Int64, init_step::Bool, start_time::Int64, end_time::Int64)
     @assert(damping_order%2 == 0)
-    
     num_fourier, num_spherical = size(eigen) .- 1 
-    #resolution_independent damping
-    #damping = damping_coef*(eigen).^damping_order
-    #resolution_dependent damping
-
+    
+    # resolution_independent damping
+    # use this if you want to set a fixed cutoff scale
+    # damping = damping_coef*(eigen).^damping_order
+    
+    # resolution_dependent damping
+    # use this if you only want to keep the simulation stable
     damping = damping_coef*(eigen/eigen[1,num_spherical]).^damping_order
-
 
     laplacian_eigen = eigen
     time = start_time
     Filtered_Leapfrog(robert_coef, damping_order, damping_coef, damping, laplacian_eigen, 
-    implicit_coef, Δt, init_step, time, start_time, end_time)
+                      implicit_coef, Δt, init_step, time, start_time, end_time)
 end
+
+
 
 function Update_Init_Step!(integrator::Filtered_Leapfrog)
     # @assert(integrator.init_step)
     integrator.init_step = false
 end
 
-
 function Get_Δt(integrator::Filtered_Leapfrog)
     init_step = integrator.init_step
-    Δt = integrator.Δt
-    return (init_step ? Δt : 2*Δt) 
+    Δt        = integrator.Δt
+    return (init_step ? Δt : 2*Δt)
 end
 
 function Get_ξ(integrator::Filtered_Leapfrog)
-    init_step = integrator.init_step
+    init_step         = integrator.init_step
     Δt, implicit_coef = integrator.Δt, integrator.implicit_coef
     return (init_step ? Δt*implicit_coef : 2*Δt*implicit_coef) 
 end
+
+
 
 function Compute_Spectral_Damping!(integrator::Filtered_Leapfrog,
                                    Qc::Array{ComplexF64,3}, Qp::Array{ComplexF64,3}, 
@@ -83,20 +87,18 @@ end
 
 
 
-
 function Filtered_Leapfrog!(integrator::Filtered_Leapfrog,
-                   δQ::Array{ComplexF64,3},
-                   Qp::Array{ComplexF64,3}, Qc::Array{ComplexF64,3}, Qn::Array{ComplexF64,3})
-
-    init_step = integrator.init_step
+                            δQ::Array{ComplexF64,3},
+                            Qp::Array{ComplexF64,3}, Qc::Array{ComplexF64,3}, Qn::Array{ComplexF64,3})
+    init_step   = integrator.init_step
     robert_coef = integrator.robert_coef
-    Δt = integrator.Δt
+    Δt          = integrator.Δt
     if (init_step) 
-        Qn .= Qc + Δt*δQ
+        Qn  .= Qc + Δt*δQ
         Qc .+= robert_coef*(-1.0*Qc + Qn)
     else
         Qc .+= robert_coef*(Qp - 2*Qc)
-        Qn .= Qp + 2*Δt*δQ
+        Qn  .= Qp + 2*Δt*δQ
         Qc .+= robert_coef*Qn
     end
 end
